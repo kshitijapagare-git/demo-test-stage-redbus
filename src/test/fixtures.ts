@@ -7,12 +7,26 @@ export const testBoardingPoints: BoardingPoint[] = [
 ]
 
 export const testOffers: Offer[] = [
-  { title: 'Save up to Rs 300 on bus tickets', valid: '05 Oct', code: 'FESTIVE300', tone: 'peach' },
+  {
+    title: 'Save up to Rs 300 on bus tickets',
+    valid: '05 Oct',
+    code: 'FESTIVE300',
+    tone: 'peach',
+    category: 'bus',
+  },
   {
     title: 'Save up to Rs 200 on Primo operators.',
     valid: '31 Oct',
     code: 'PRIMODAY',
     tone: 'yellow',
+    category: 'bus',
+  },
+  {
+    title: 'Save up to Rs 200 on train tickets',
+    valid: '31 Oct',
+    code: 'TRAIN200',
+    tone: 'yellow',
+    category: 'train',
   },
 ]
 
