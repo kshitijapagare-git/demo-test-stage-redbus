@@ -12,6 +12,12 @@ export interface BoardingPoint {
   cityId: City['id']
 }
 
+export interface Route {
+  id: number
+  fromCityId: City['id']
+  toCityId: City['id']
+}
+
 export type OfferTone = 'peach' | 'pink' | 'yellow'
 
 export interface Offer {

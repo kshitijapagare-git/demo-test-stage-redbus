@@ -1,7 +1,25 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SearchCard from './SearchCard'
+
+function LocationProbe() {
+  const location = useLocation()
+  return <div data-testid="location">{location.pathname}{location.search}</div>
+}
+
+function renderWithRouter(initialEntry = '/') {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <LocationProbe />
+      <Routes>
+        <Route path="/" element={<SearchCard />} />
+        <Route path="/search" element={<div>Search results page</div>} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
 
 describe('SearchCard', () => {
   beforeEach(() => {
@@ -14,7 +32,7 @@ describe('SearchCard', () => {
   })
 
   it("shows today's date by default", () => {
-    render(<SearchCard />)
+    renderWithRouter()
     expect(screen.getByText('02 Oct, 2026')).toBeInTheDocument()
     expect(screen.getByText('(Today)')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-pressed', 'true')
@@ -22,7 +40,7 @@ describe('SearchCard', () => {
 
   it("switches to tomorrow's date when Tomorrow is clicked", async () => {
     const user = userEvent.setup()
-    render(<SearchCard />)
+    renderWithRouter()
     await user.click(screen.getByRole('button', { name: 'Tomorrow' }))
     expect(screen.getByText('03 Oct, 2026')).toBeInTheDocument()
     expect(screen.getByText('(Tomorrow)')).toBeInTheDocument()
@@ -31,7 +49,7 @@ describe('SearchCard', () => {
 
   it('selects a day chip with the keyboard', async () => {
     const user = userEvent.setup()
-    render(<SearchCard />)
+    renderWithRouter()
     screen.getByRole('button', { name: 'Tomorrow' }).focus()
     await user.keyboard('{Enter}')
     expect(screen.getByText('03 Oct, 2026')).toBeInTheDocument()
@@ -39,7 +57,7 @@ describe('SearchCard', () => {
 
   it('toggles the booking-for-women switch', async () => {
     const user = userEvent.setup()
-    render(<SearchCard />)
+    renderWithRouter()
     const toggle = screen.getByRole('switch', { name: 'Booking for women' })
     expect(toggle).toHaveAttribute('aria-checked', 'false')
     await user.click(toggle)
@@ -48,7 +66,7 @@ describe('SearchCard', () => {
 
   it('filters cities by prefix and shows No cities found', async () => {
     const user = userEvent.setup()
-    render(<SearchCard />)
+    renderWithRouter()
     const from = screen.getByLabelText('From')
 
     await user.type(from, 'pu')
@@ -61,7 +79,7 @@ describe('SearchCard', () => {
 
   it('selects a suggestion with arrow keys and Enter', async () => {
     const user = userEvent.setup()
-    render(<SearchCard />)
+    renderWithRouter()
     const from = screen.getByLabelText('From')
 
     await user.type(from, 'pu')
@@ -73,7 +91,7 @@ describe('SearchCard', () => {
 
   it('resolves an exactly typed city name', async () => {
     const user = userEvent.setup()
-    render(<SearchCard />)
+    renderWithRouter()
 
     await user.type(screen.getByLabelText('From'), 'pune')
     await user.type(screen.getByLabelText('To'), 'bengaluru')
@@ -85,7 +103,7 @@ describe('SearchCard', () => {
 
   it('swaps the selected From and To cities', async () => {
     const user = userEvent.setup()
-    render(<SearchCard />)
+    renderWithRouter()
     const from = screen.getByLabelText('From')
     const to = screen.getByLabelText('To')
 
@@ -99,7 +117,7 @@ describe('SearchCard', () => {
 
   it('shows an error for an empty field after Search', async () => {
     const user = userEvent.setup()
-    render(<SearchCard />)
+    renderWithRouter()
 
     expect(screen.queryByText('Please select a city')).not.toBeInTheDocument()
 
@@ -110,12 +128,70 @@ describe('SearchCard', () => {
 
   it('shows an error when From and To are the same city', async () => {
     const user = userEvent.setup()
-    render(<SearchCard />)
+    renderWithRouter()
 
     await user.type(screen.getByLabelText('From'), 'pune')
     await user.type(screen.getByLabelText('To'), 'pune')
     await user.click(screen.getByRole('button', { name: 'Search buses' }))
 
     expect(screen.getByText('From and To must be different cities')).toBeInTheDocument()
+  })
+
+  it('fills the search card from the URL', () => {
+    renderWithRouter('/?from=1&to=2&date=2026-10-02')
+
+    expect(screen.getByLabelText('From')).toHaveValue('Pune')
+    expect(screen.getByLabelText('To')).toHaveValue('Bengaluru')
+    expect(screen.getByLabelText('Date of journey')).toHaveValue('2026-10-02')
+  })
+
+  it('sets the date picker min to today', () => {
+    renderWithRouter()
+
+    expect(screen.getByLabelText('Date of journey')).toHaveAttribute('min', '2026-10-02')
+  })
+
+  it('updates the home URL as search state changes', async () => {
+    const user = userEvent.setup()
+    renderWithRouter()
+
+    await user.type(screen.getByLabelText('From'), 'pune')
+    await user.type(screen.getByLabelText('To'), 'bengaluru')
+    await user.click(screen.getByRole('button', { name: 'Tomorrow' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('location')).toHaveTextContent('/?from=1&to=2&date=2026-10-03'),
+    )
+  })
+
+  it('navigates to /search with from, to, and date on a valid search', async () => {
+    const user = userEvent.setup()
+    renderWithRouter()
+
+    await user.type(screen.getByLabelText('From'), 'pune')
+    await user.type(screen.getByLabelText('To'), 'bengaluru')
+    await user.click(screen.getByRole('button', { name: 'Search buses' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('location')).toHaveTextContent(
+        '/search?from=1&to=2&date=2026-10-02',
+      ),
+    )
+    expect(screen.getByText('Search results page')).toBeInTheDocument()
+  })
+
+  it('blocks a past date and does not navigate', async () => {
+    const user = userEvent.setup()
+    renderWithRouter()
+
+    await user.type(screen.getByLabelText('From'), 'pune')
+    await user.type(screen.getByLabelText('To'), 'bengaluru')
+    fireEvent.change(screen.getByLabelText('Date of journey'), {
+      target: { value: '2026-10-01' },
+    })
+    await user.click(screen.getByRole('button', { name: 'Search buses' }))
+
+    expect(screen.getByText('Past dates are not allowed')).toBeInTheDocument()
+    expect(screen.queryByText('Search results page')).not.toBeInTheDocument()
   })
 })

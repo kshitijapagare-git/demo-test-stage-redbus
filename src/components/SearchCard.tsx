@@ -1,13 +1,25 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { ChangeEvent } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import CityAutocomplete from './CityAutocomplete'
 import { cities } from '../data'
 import { classNames } from '../lib/classNames'
-import { DAY_OPTIONS, formatDate, getJourneyDay, TODAY_OFFSET } from '../lib/date'
+import {
+  addDays,
+  DAY_OPTIONS,
+  formatDate,
+  isBeforeToday,
+  parseISODate,
+  TODAY_OFFSET,
+  TOMORROW_OFFSET,
+  toISODate,
+} from '../lib/date'
 import type { City } from '../types'
 
 interface SearchErrors {
   from: string | null
   to: string | null
+  date: string | null
 }
 
 function validateCities(from: City['id'] | null, to: City['id'] | null): SearchErrors {
@@ -15,27 +27,72 @@ function validateCities(from: City['id'] | null, to: City['id'] | null): SearchE
     return {
       from: from === null ? 'Please select a city' : null,
       to: to === null ? 'Please select a city' : null,
+      date: null,
     }
   }
 
   if (from === to) {
-    return { from: null, to: 'From and To must be different cities' }
+    return { from: null, to: 'From and To must be different cities', date: null }
   }
 
-  return { from: null, to: null }
+  return { from: null, to: null, date: null }
+}
+
+function validateDate(value: string, today: Date): string | null {
+  const date = parseISODate(value)
+  if (date === null) return 'Please select a valid date'
+  if (isBeforeToday(date, today)) return 'Past dates are not allowed'
+  return null
+}
+
+function readCityId(value: string | null): City['id'] | null {
+  if (value === null) return null
+  const parsed = Number(value)
+  return cities.find((city) => city.id === parsed)?.id ?? null
+}
+
+function readInitialDate(value: string | null, today: Date): string {
+  const fallback = toISODate(today)
+  if (value === null) return fallback
+
+  const date = parseISODate(value)
+  if (date === null || isBeforeToday(date, today)) return fallback
+
+  return toISODate(date)
 }
 
 function SearchCard() {
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const [today] = useState(() => new Date())
-  const [dayOffset, setDayOffset] = useState(TODAY_OFFSET)
+
+  const todayISO = toISODate(today)
+  const tomorrowISO = toISODate(addDays(today, TOMORROW_OFFSET))
+
+  const [date, setDate] = useState(() => readInitialDate(searchParams.get('date'), today))
+  const [fromCityId, setFromCityId] = useState<City['id'] | null>(() =>
+    readCityId(searchParams.get('from')),
+  )
+  const [toCityId, setToCityId] = useState<City['id'] | null>(() =>
+    readCityId(searchParams.get('to')),
+  )
   const [forWomen, setForWomen] = useState(false)
-  const [fromCityId, setFromCityId] = useState<City['id'] | null>(null)
-  const [toCityId, setToCityId] = useState<City['id'] | null>(null)
   const [hasSearched, setHasSearched] = useState(false)
   const [fromError, setFromError] = useState<string | null>(null)
   const [toError, setToError] = useState<string | null>(null)
+  const [dateError, setDateError] = useState<string | null>(null)
 
-  const journeyDay = getJourneyDay(today, dayOffset)
+  const journeyDate = parseISODate(date) ?? today
+  const journeyLabel = date === todayISO ? 'Today' : date === tomorrowISO ? 'Tomorrow' : ''
+
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (fromCityId !== null) params.set('from', String(fromCityId))
+    if (toCityId !== null) params.set('to', String(toCityId))
+    params.set('date', date)
+
+    navigate({ search: `?${params.toString()}` }, { replace: true })
+  }, [fromCityId, toCityId, date, navigate])
 
   function applyValidation(from: City['id'] | null, to: City['id'] | null) {
     const errors = validateCities(from, to)
@@ -61,9 +118,36 @@ function SearchCard() {
     if (hasSearched) applyValidation(nextFrom, nextTo)
   }
 
+  function handleDateChange(event: ChangeEvent<HTMLInputElement>) {
+    const nextDate = event.target.value
+    setDate(nextDate)
+    if (hasSearched) setDateError(validateDate(nextDate, today))
+  }
+
+  function handleDayOffset(offset: number) {
+    const nextDate = offset === TODAY_OFFSET ? todayISO : tomorrowISO
+    setDate(nextDate)
+    if (hasSearched) setDateError(validateDate(nextDate, today))
+  }
+
   function handleSearch() {
     setHasSearched(true)
-    applyValidation(fromCityId, toCityId)
+
+    const cityErrors = validateCities(fromCityId, toCityId)
+    const dateErrorResult = validateDate(date, today)
+    setFromError(cityErrors.from)
+    setToError(cityErrors.to)
+    setDateError(dateErrorResult)
+
+    if (
+      fromCityId !== null &&
+      toCityId !== null &&
+      cityErrors.from === null &&
+      cityErrors.to === null &&
+      dateErrorResult === null
+    ) {
+      navigate(`/search?from=${fromCityId}&to=${toCityId}&date=${date}`)
+    }
   }
 
   return (
@@ -108,23 +192,34 @@ function SearchCard() {
             </span>
             <div className="date-text">
               <small>Date of Journey</small>
-              <strong>{formatDate(journeyDay.date)}</strong>
-              <em>({journeyDay.label})</em>
+              <strong>{formatDate(journeyDate)}</strong>
+              <em>{journeyLabel ? `(${journeyLabel})` : ''}</em>
+            </div>
+            <div className="date-picker">
+              <input
+                type="date"
+                aria-label="Date of journey"
+                value={date}
+                min={todayISO}
+                onChange={handleDateChange}
+              />
             </div>
             {DAY_OPTIONS.map((option) => {
-              const isSelected = option.offset === dayOffset
+              const isSelected =
+                option.offset === TODAY_OFFSET ? date === todayISO : date === tomorrowISO
               return (
                 <button
                   key={option.offset}
                   type="button"
                   className={classNames('chip', isSelected && 'chip-active')}
                   aria-pressed={isSelected}
-                  onClick={() => setDayOffset(option.offset)}
+                  onClick={() => handleDayOffset(option.offset)}
                 >
                   {option.label}
                 </button>
               )
             })}
+            {dateError ? <span className="field-error">{dateError}</span> : null}
           </div>
         </div>
         <div className="women-box">

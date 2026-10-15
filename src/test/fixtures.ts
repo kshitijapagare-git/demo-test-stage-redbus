@@ -1,4 +1,4 @@
-import type { BoardingPoint, City, Offer } from '../types'
+import type { BoardingPoint, City, Offer, Route } from '../types'
 
 export const testCities: City[] = [{ id: 1, name: 'Pune', state: 'Maharashtra' }]
 
@@ -15,3 +15,5 @@ export const testOffers: Offer[] = [
     tone: 'yellow',
   },
 ]
+
+export const testRoutes: Route[] = [{ id: 1, fromCityId: 1, toCityId: 2 }]
