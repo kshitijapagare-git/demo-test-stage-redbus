@@ -147,6 +147,24 @@ describe('SearchCard', () => {
     expect(screen.getByLabelText('Date of journey')).toHaveValue('2026-10-02')
   })
 
+  it('drops a bp param when the search card syncs and when a search is submitted', async () => {
+    const user = userEvent.setup()
+    renderWithRouter('/?from=1&to=2&date=2026-10-02&bp=2')
+
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe('/?from=1&to=2&date=2026-10-02'),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Search buses' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe(
+        '/search?from=1&to=2&date=2026-10-02',
+      ),
+    )
+    expect(screen.getByText('Search results page')).toBeInTheDocument()
+  })
+
   it('sets the date picker min to today', () => {
     renderWithRouter()
 

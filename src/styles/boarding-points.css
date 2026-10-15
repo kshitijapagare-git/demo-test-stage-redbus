@@ -8,8 +8,23 @@
   gap: 14px;
 }
 .bp-card {
+  position: relative;
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 18px;
   line-height: 1.5;
+}
+.bp-radio {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.bp-card--selected {
+  border-color: var(--red);
+  background: var(--red-soft);
+}
+.bp-card:focus-within {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
 }
