@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import CityAutocomplete from './CityAutocomplete'
+import RecentSearches from './RecentSearches'
 import { cities } from '../data'
 import { classNames } from '../lib/classNames'
 import {
@@ -14,7 +15,14 @@ import {
   TOMORROW_OFFSET,
   toISODate,
 } from '../lib/date'
-import type { City } from '../types'
+import {
+  clearRecentSearches,
+  getRecentSearchesStorage,
+  readRecentSearches,
+  removeRecentSearch,
+  saveRecentSearch,
+} from '../lib/recentSearches'
+import type { City, RecentSearch } from '../types'
 
 interface SearchErrors {
   from: string | null
@@ -81,6 +89,9 @@ function SearchCard() {
   const [fromError, setFromError] = useState<string | null>(null)
   const [toError, setToError] = useState<string | null>(null)
   const [dateError, setDateError] = useState<string | null>(null)
+  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>(() =>
+    readRecentSearches(getRecentSearchesStorage(), cities),
+  )
 
   const journeyDate = parseISODate(date) ?? today
   const journeyLabel = date === todayISO ? 'Today' : date === tomorrowISO ? 'Tomorrow' : ''
@@ -130,6 +141,25 @@ function SearchCard() {
     if (hasSearched) setDateError(validateDate(nextDate, today))
   }
 
+  function handleRecentSelect(search: RecentSearch) {
+    setFromCityId(search.fromCityId)
+    setToCityId(search.toCityId)
+
+    const selectedDate = parseISODate(search.date)
+    setDate(selectedDate !== null && isBeforeToday(selectedDate, today) ? todayISO : search.date)
+  }
+
+  function handleRecentRemove(search: RecentSearch) {
+    setRecentSearches(
+      removeRecentSearch(getRecentSearchesStorage(), search.fromCityId, search.toCityId, cities),
+    )
+  }
+
+  function handleRecentClear() {
+    clearRecentSearches(getRecentSearchesStorage())
+    setRecentSearches([])
+  }
+
   function handleSearch() {
     setHasSearched(true)
 
@@ -146,104 +176,120 @@ function SearchCard() {
       cityErrors.to === null &&
       dateErrorResult === null
     ) {
+      const next = saveRecentSearch(
+        getRecentSearchesStorage(),
+        { fromCityId, toCityId, date },
+        cities,
+      )
+      setRecentSearches(next)
       navigate(`/search?from=${fromCityId}&to=${toCityId}&date=${date}`)
     }
   }
 
   return (
-    <section className="search-card" aria-label="Search buses">
-      <div className="search-row">
-        <div className="search-fields">
-          <div className="field autocomplete-field">
-            <span className="field-icon" aria-hidden="true">
-              🚌
-            </span>
-            <CityAutocomplete
-              cities={cities}
-              value={fromCityId}
-              onChange={handleFromChange}
-              label="From"
-              error={fromError ?? undefined}
-            />
-          </div>
-          <button
-            type="button"
-            className="swap-btn"
-            aria-label="Swap From and To"
-            onClick={swapCities}
-          >
-            ⇄
-          </button>
-          <div className="field autocomplete-field">
-            <span className="field-icon" aria-hidden="true">
-              🚌
-            </span>
-            <CityAutocomplete
-              cities={cities}
-              value={toCityId}
-              onChange={handleToChange}
-              label="To"
-              error={toError ?? undefined}
-            />
-          </div>
-          <div className="field date-field">
-            <span className="field-icon" aria-hidden="true">
-              📅
-            </span>
-            <div className="date-text">
-              <small>Date of Journey</small>
-              <strong>{formatDate(journeyDate)}</strong>
-              <em>{journeyLabel ? `(${journeyLabel})` : ''}</em>
-            </div>
-            <div className="date-picker">
-              <input
-                type="date"
-                aria-label="Date of journey"
-                value={date}
-                min={todayISO}
-                onChange={handleDateChange}
+    <>
+      <section className="search-card" aria-label="Search buses">
+        <div className="search-row">
+          <div className="search-fields">
+            <div className="field autocomplete-field">
+              <span className="field-icon" aria-hidden="true">
+                🚌
+              </span>
+              <CityAutocomplete
+                cities={cities}
+                value={fromCityId}
+                onChange={handleFromChange}
+                label="From"
+                error={fromError ?? undefined}
               />
             </div>
-            {DAY_OPTIONS.map((option) => {
-              const isSelected =
-                option.offset === TODAY_OFFSET ? date === todayISO : date === tomorrowISO
-              return (
-                <button
-                  key={option.offset}
-                  type="button"
-                  className={classNames('chip', isSelected && 'chip-active')}
-                  aria-pressed={isSelected}
-                  onClick={() => handleDayOffset(option.offset)}
-                >
-                  {option.label}
-                </button>
-              )
-            })}
-            {dateError ? <span className="field-error">{dateError}</span> : null}
+            <button
+              type="button"
+              className="swap-btn"
+              aria-label="Swap From and To"
+              onClick={swapCities}
+            >
+              ⇄
+            </button>
+            <div className="field autocomplete-field">
+              <span className="field-icon" aria-hidden="true">
+                🚌
+              </span>
+              <CityAutocomplete
+                cities={cities}
+                value={toCityId}
+                onChange={handleToChange}
+                label="To"
+                error={toError ?? undefined}
+              />
+            </div>
+            <div className="field date-field">
+              <span className="field-icon" aria-hidden="true">
+                📅
+              </span>
+              <div className="date-text">
+                <small>Date of Journey</small>
+                <strong>{formatDate(journeyDate)}</strong>
+                <em>{journeyLabel ? `(${journeyLabel})` : ''}</em>
+              </div>
+              <div className="date-picker">
+                <input
+                  type="date"
+                  aria-label="Date of journey"
+                  value={date}
+                  min={todayISO}
+                  onChange={handleDateChange}
+                />
+              </div>
+              {DAY_OPTIONS.map((option) => {
+                const isSelected =
+                  option.offset === TODAY_OFFSET ? date === todayISO : date === tomorrowISO
+                return (
+                  <button
+                    key={option.offset}
+                    type="button"
+                    className={classNames('chip', isSelected && 'chip-active')}
+                    aria-pressed={isSelected}
+                    onClick={() => handleDayOffset(option.offset)}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
+              {dateError ? <span className="field-error">{dateError}</span> : null}
+            </div>
+          </div>
+          <div className="women-box">
+            <span className="women-icon" aria-hidden="true">
+              👩
+            </span>
+            <div>
+              <div>Booking for women</div>
+              <a href="#">Know more</a>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={forWomen}
+              aria-label="Booking for women"
+              className={classNames('toggle', forWomen && 'on')}
+              onClick={() => setForWomen((isOn) => !isOn)}
+            />
           </div>
         </div>
-        <div className="women-box">
-          <span className="women-icon" aria-hidden="true">
-            👩
-          </span>
-          <div>
-            <div>Booking for women</div>
-            <a href="#">Know more</a>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={forWomen}
-            aria-label="Booking for women"
-            className={classNames('toggle', forWomen && 'on')}
-            onClick={() => setForWomen((isOn) => !isOn)}
-          />
-        </div>
-      </div>
-      <button type="button" className="search-btn" onClick={handleSearch}>
-        <span aria-hidden="true">⌕</span> Search buses
-      </button>
-    </section>
+        <button type="button" className="search-btn" onClick={handleSearch}>
+          <span aria-hidden="true">⌕</span> Search buses
+        </button>
+      </section>
+      <RecentSearches
+        cities={cities}
+        searches={recentSearches}
+        today={today}
+        onSelect={handleRecentSelect}
+        onRemove={handleRecentRemove}
+        onClear={handleRecentClear}
+      />
+    </>
   )
 }
 

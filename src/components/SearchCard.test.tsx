@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SearchCard from './SearchCard'
+import { RECENT_SEARCHES_STORAGE_KEY } from '../lib/recentSearches'
 
 function LocationProbe() {
   const location = useLocation()
@@ -23,6 +24,7 @@ function renderWithRouter(initialEntry = '/') {
 
 describe('SearchCard', () => {
   beforeEach(() => {
+    localStorage.clear()
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date(2026, 9, 2, 10, 0))
   })
@@ -193,5 +195,130 @@ describe('SearchCard', () => {
 
     expect(screen.getByText('Past dates are not allowed')).toBeInTheDocument()
     expect(screen.queryByText('Search results page')).not.toBeInTheDocument()
+  })
+
+  it('saves a valid search to localStorage', async () => {
+    const user = userEvent.setup()
+    renderWithRouter()
+
+    await user.type(screen.getByLabelText('From'), 'pune')
+    await user.type(screen.getByLabelText('To'), 'bengaluru')
+    await user.click(screen.getByRole('button', { name: 'Search buses' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('location')).toHaveTextContent(
+        '/search?from=1&to=2&date=2026-10-02',
+      ),
+    )
+
+    expect(localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY)).toBe(
+      JSON.stringify([{ fromCityId: 1, toCityId: 2, date: '2026-10-02' }]),
+    )
+  })
+
+  it('does not save an invalid search', async () => {
+    const user = userEvent.setup()
+    renderWithRouter()
+
+    await user.click(screen.getByRole('button', { name: 'Search buses' }))
+
+    expect(screen.getAllByText('Please select a city')).toHaveLength(2)
+    expect(localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY)).toBeNull()
+  })
+
+  it('shows a seeded recent search under the search card', () => {
+    localStorage.setItem(
+      RECENT_SEARCHES_STORAGE_KEY,
+      JSON.stringify([{ fromCityId: 1, toCityId: 2, date: '2026-10-02' }]),
+    )
+
+    renderWithRouter()
+
+    expect(screen.getByText('Recent searches')).toBeInTheDocument()
+    expect(screen.getByText('Pune → Bengaluru')).toBeInTheDocument()
+    expect(screen.getByText('· 02 Oct')).toBeInTheDocument()
+  })
+
+  it('clicking a recent search fills the card without searching', async () => {
+    localStorage.setItem(
+      RECENT_SEARCHES_STORAGE_KEY,
+      JSON.stringify([{ fromCityId: 1, toCityId: 2, date: '2026-10-03' }]),
+    )
+    const user = userEvent.setup()
+    renderWithRouter()
+
+    await user.click(screen.getByRole('button', { name: /Pune → Bengaluru/ }))
+
+    expect(screen.getByLabelText('From')).toHaveValue('Pune')
+    expect(screen.getByLabelText('To')).toHaveValue('Bengaluru')
+    expect(screen.getByLabelText('Date of journey')).toHaveValue('2026-10-03')
+    expect(screen.queryByText('Search results page')).not.toBeInTheDocument()
+
+    await waitFor(() =>
+      expect(screen.getByTestId('location')).toHaveTextContent('/?from=1&to=2&date=2026-10-03'),
+    )
+  })
+
+  it('clicking a past recent search fills cities and uses today without changing storage', async () => {
+    const stored = [{ fromCityId: 1, toCityId: 2, date: '2026-10-01' }]
+    localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(stored))
+    const user = userEvent.setup()
+    renderWithRouter()
+
+    expect(screen.getByText('Past')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Pune → Bengaluru/ }))
+
+    expect(screen.getByLabelText('From')).toHaveValue('Pune')
+    expect(screen.getByLabelText('To')).toHaveValue('Bengaluru')
+    expect(screen.getByLabelText('Date of journey')).toHaveValue('2026-10-02')
+    expect(localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY)).toBe(JSON.stringify(stored))
+    expect(screen.queryByText('Search results page')).not.toBeInTheDocument()
+  })
+
+  it('removes one recent search with ×', async () => {
+    localStorage.setItem(
+      RECENT_SEARCHES_STORAGE_KEY,
+      JSON.stringify([
+        { fromCityId: 1, toCityId: 2, date: '2026-10-02' },
+        { fromCityId: 2, toCityId: 1, date: '2026-10-03' },
+      ]),
+    )
+    const user = userEvent.setup()
+    renderWithRouter()
+
+    await user.click(screen.getByRole('button', { name: 'Remove Pune to Bengaluru' }))
+
+    expect(screen.queryByRole('button', { name: /Pune → Bengaluru/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Bengaluru → Pune/ })).toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY) ?? 'null')).toEqual([
+      { fromCityId: 2, toCityId: 1, date: '2026-10-03' },
+    ])
+  })
+
+  it('Clear all removes every recent search', async () => {
+    localStorage.setItem(
+      RECENT_SEARCHES_STORAGE_KEY,
+      JSON.stringify([
+        { fromCityId: 1, toCityId: 2, date: '2026-10-02' },
+        { fromCityId: 2, toCityId: 1, date: '2026-10-03' },
+      ]),
+    )
+    const user = userEvent.setup()
+    renderWithRouter()
+
+    await user.click(screen.getByRole('button', { name: 'Clear all' }))
+
+    expect(screen.queryByText('Recent searches')).not.toBeInTheDocument()
+    expect(localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY)).toBe('[]')
+  })
+
+  it('hides the row and still renders when localStorage holds invalid JSON', () => {
+    localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, '{not valid')
+
+    renderWithRouter()
+
+    expect(screen.queryByText('Recent searches')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Search buses' })).toBeInTheDocument()
   })
 })

@@ -18,6 +18,12 @@ export interface Route {
   toCityId: City['id']
 }
 
+export interface RecentSearch {
+  fromCityId: City['id']
+  toCityId: City['id']
+  date: string
+}
+
 export type OfferTone = 'peach' | 'pink' | 'yellow'
 
 export interface Offer {

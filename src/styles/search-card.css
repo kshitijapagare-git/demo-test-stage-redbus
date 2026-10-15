@@ -250,3 +250,86 @@
 .women-box > div {
   white-space: nowrap;
 }
+
+/* Recent searches */
+.recent-searches {
+  margin-top: 48px;
+}
+.recent-searches-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.recent-searches-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+.recent-searches-clear {
+  border: 0;
+  background: transparent;
+  color: var(--link);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.recent-searches-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+}
+.recent-search {
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+}
+.recent-search--past {
+  border-color: var(--red-soft);
+  background: var(--red-soft);
+}
+.recent-search-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 10px 16px;
+  font: inherit;
+  cursor: pointer;
+}
+.recent-search-route {
+  font-weight: 700;
+}
+.recent-search-date {
+  color: var(--muted);
+}
+.recent-search-badge {
+  background: var(--red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.recent-search-remove {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 14px;
+  cursor: pointer;
+}
+.recent-search-remove:hover {
+  color: var(--red);
+}
