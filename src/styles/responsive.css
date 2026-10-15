@@ -1,4 +1,10 @@
 @media (max-width: 899px) {
+  body {
+    overflow-x: hidden;
+  }
+  .menu-btn {
+    display: flex;
+  }
   .header-inner {
     gap: 12px;
   }
@@ -24,5 +30,25 @@
   }
   .women-box {
     flex: 1 1 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-inner {
+    gap: 6px;
+    height: 60px;
+  }
+  .brand {
+    border-width: 2px;
+    border-radius: 10px 10px 13px 13px;
+    padding: 2px 5px;
+    font-size: 17px;
+  }
+  .nav-item {
+    padding: 0 6px;
+    font-size: 11px;
+  }
+  .nav-icon {
+    font-size: 18px;
   }
 }
